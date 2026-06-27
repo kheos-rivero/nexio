@@ -12,3 +12,16 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     detectSessionInUrl: true
   }
 })
+
+export const supabasePublico = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`
+    }
+  },
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+})

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabasePublico } from '../lib/supabase'
 
 const HORAS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
                '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30']
@@ -12,7 +12,7 @@ export default function ReservaPublica() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
-  const [paso, setPaso] = useState(1) // 1: elegir servicio, 2: elegir fecha/hora, 3: datos cliente, 4: confirmado
+  const [paso, setPaso] = useState(1)
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null)
   const [fecha, setFecha] = useState('')
   const [hora, setHora] = useState('')
@@ -22,7 +22,7 @@ export default function ReservaPublica() {
 
   useEffect(() => {
     const cargar = async () => {
-      const { data: negocioData } = await supabase
+      const { data: negocioData } = await supabasePublico
         .from('negocios')
         .select('*')
         .eq('slug', slug)
@@ -30,7 +30,7 @@ export default function ReservaPublica() {
 
       if (!negocioData) { setNotFound(true); setLoading(false); return }
 
-      const { data: serviciosData } = await supabase
+      const { data: serviciosData } = await supabasePublico
         .from('servicios')
         .select('*')
         .eq('negocio_id', negocioData.id)
@@ -50,7 +50,7 @@ export default function ReservaPublica() {
 
     const fechaHora = new Date(`${fecha}T${hora}`).toISOString()
 
-    const { error } = await supabase.from('citas').insert({
+    const { error } = await supabasePublico.from('citas').insert({
       negocio_id: negocio.id,
       servicio_id: servicioSeleccionado.id,
       cliente_nombre: form.nombre.trim(),
@@ -82,7 +82,6 @@ export default function ReservaPublica() {
 
   return (
     <div style={estilos.pagina}>
-      {/* Header del negocio */}
       <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
         <h1 style={{ color: 'white', margin: '0 0 0.25rem', fontSize: '1.75rem' }}>{negocio.nombre}</h1>
         <p style={{ color: '#888', margin: 0 }}>
@@ -92,8 +91,6 @@ export default function ReservaPublica() {
       </div>
 
       <div style={estilos.card}>
-
-        {/* Indicador de pasos */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
           {[1, 2, 3].map(n => (
             <div key={n} style={{
@@ -105,7 +102,6 @@ export default function ReservaPublica() {
           ))}
         </div>
 
-        {/* PASO 1 — Elegir servicio */}
         {paso === 1 && (
           <div>
             <h3 style={{ color: 'white', margin: '0 0 1.25rem', textAlign: 'center' }}>¿Qué servicio necesitas?</h3>
@@ -132,19 +128,16 @@ export default function ReservaPublica() {
           </div>
         )}
 
-        {/* PASO 2 — Elegir fecha y hora */}
         {paso === 2 && (
           <div>
             <h3 style={{ color: 'white', margin: '0 0 0.5rem', textAlign: 'center' }}>¿Cuándo te viene bien?</h3>
             <p style={{ color: '#888', textAlign: 'center', margin: '0 0 1.5rem', fontSize: '0.875rem' }}>
               {servicioSeleccionado.nombre} · {servicioSeleccionado.duracion_minutos} min
             </p>
-
             <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Fecha</label>
             <input type="date" min={hoy} value={fecha} onChange={e => setFecha(e.target.value)}
               style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1.25rem', boxSizing: 'border-box' }}
             />
-
             {fecha && (
               <>
                 <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Hora</label>
@@ -161,7 +154,6 @@ export default function ReservaPublica() {
                 </div>
               </>
             )}
-
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button onClick={() => setPaso(1)} style={{ flex: 1, padding: '0.7rem', background: 'none', border: '1px solid #333', color: '#888', borderRadius: '8px', cursor: 'pointer' }}>
                 ← Volver
@@ -174,34 +166,28 @@ export default function ReservaPublica() {
           </div>
         )}
 
-        {/* PASO 3 — Datos del cliente */}
         {paso === 3 && (
           <div>
             <h3 style={{ color: 'white', margin: '0 0 0.5rem', textAlign: 'center' }}>Tus datos</h3>
             <p style={{ color: '#888', textAlign: 'center', margin: '0 0 1.5rem', fontSize: '0.875rem' }}>
               {servicioSeleccionado.nombre} · {fecha} · {hora}
             </p>
-
             <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Tu nombre *</label>
             <input type="text" placeholder="Ej: Carlos García"
               value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
               style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1rem', boxSizing: 'border-box' }}
             />
-
             <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Teléfono</label>
             <input type="tel" placeholder="Ej: 612 345 678"
               value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
               style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1rem', boxSizing: 'border-box' }}
             />
-
             <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Email</label>
             <input type="email" placeholder="Ej: carlos@email.com"
               value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
               style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1.5rem', boxSizing: 'border-box' }}
             />
-
             {error && <p style={{ color: '#f87171', fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</p>}
-
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button onClick={() => setPaso(2)} style={{ flex: 1, padding: '0.7rem', background: 'none', border: '1px solid #333', color: '#888', borderRadius: '8px', cursor: 'pointer' }}>
                 ← Volver
@@ -214,23 +200,15 @@ export default function ReservaPublica() {
           </div>
         )}
 
-        {/* PASO 4 — Confirmado */}
         {paso === 4 && (
           <div style={{ textAlign: 'center', padding: '1rem 0' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
             <h3 style={{ color: 'white', margin: '0 0 0.5rem' }}>¡Reserva confirmada!</h3>
-            <p style={{ color: '#888', margin: '0 0 0.25rem' }}>
-              {servicioSeleccionado.nombre}
-            </p>
-            <p style={{ color: '#888', margin: '0 0 1.5rem' }}>
-              {fecha} · {hora}
-            </p>
-            <p style={{ color: '#666', fontSize: '0.875rem' }}>
-              El negocio se pondrá en contacto contigo para confirmar.
-            </p>
+            <p style={{ color: '#888', margin: '0 0 0.25rem' }}>{servicioSeleccionado.nombre}</p>
+            <p style={{ color: '#888', margin: '0 0 1.5rem' }}>{fecha} · {hora}</p>
+            <p style={{ color: '#666', fontSize: '0.875rem' }}>El negocio se pondrá en contacto contigo para confirmar.</p>
           </div>
         )}
-
       </div>
 
       <p style={{ textAlign: 'center', color: '#444', fontSize: '0.75rem', marginTop: '2rem' }}>
