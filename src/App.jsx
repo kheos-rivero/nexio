@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
@@ -43,11 +44,14 @@ function App() {
 
   return (
     <Routes>
-      {/* Ruta pública — sin login */}
+      {/* Rutas públicas — sin login */}
       <Route path="/reservar/:slug" element={<ReservaPublica />} />
+      <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />} />
+
+      {/* Landing — solo si no hay sesión */}
+      {!user && <Route path="/" element={<Landing />} />}
 
       {/* Rutas privadas */}
-      {!user && <Route path="*" element={<Login onLogin={setUser} />} />}
       {user && !negocio?.nombre && <Route path="*" element={<Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />} />}
       {user && negocio?.nombre && (
         <>
