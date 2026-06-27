@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Dashboard({ negocio }) {
+  const navigate = useNavigate()
+
   return (
     <div style={{ minHeight: '100vh', fontFamily: 'sans-serif', background: '#0f0f0f', color: 'white' }}>
       
@@ -35,7 +38,7 @@ export default function Dashboard({ negocio }) {
           titulo="Servicios"
           descripcion="Gestiona lo que ofreces"
           icono="✂️"
-          onClick={() => alert('Próximamente — Tarea E')}
+          onClick={() => navigate('/servicios')}
         />
         <TarjetaNav
           titulo="Citas"

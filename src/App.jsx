@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
+import Servicios from './pages/Servicios'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -39,11 +41,15 @@ function App() {
 
   if (!user) return <Login onLogin={setUser} />
 
-  if (!negocio?.nombre) return (
-    <Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />
-  )
+  if (!negocio?.nombre) return <Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />
 
-  return <Dashboard negocio={negocio} />
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard negocio={negocio} />} />
+      <Route path="/servicios" element={<Servicios negocio={negocio} />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  )
 }
 
 export default App
