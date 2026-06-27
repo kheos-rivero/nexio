@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
+import Dashboard from './pages/Dashboard'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -34,25 +35,15 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (loading) return <p style={{ padding: '2rem' }}>Cargando...</p>
+  if (loading) return <p style={{ padding: '2rem', color: 'white', background: '#0f0f0f', minHeight: '100vh', margin: 0 }}>Cargando...</p>
 
   if (!user) return <Login onLogin={setUser} />
 
   if (!negocio?.nombre) return (
-    <Onboarding
-      user={user}
-      onComplete={() => cargarNegocio(user.id)}
-    />
+    <Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />
   )
 
-  return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>Nexio</h1>
-      <p>Bienvenido, <strong>{negocio.nombre}</strong></p>
-      <p style={{ color: '#666' }}>{negocio.categoria} · {negocio.direccion}</p>
-      <button onClick={() => supabase.auth.signOut()}>Cerrar sesión</button>
-    </div>
-  )
+  return <Dashboard negocio={negocio} />
 }
 
 export default App
