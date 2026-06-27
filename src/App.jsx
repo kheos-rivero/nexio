@@ -6,6 +6,7 @@ import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Servicios from './pages/Servicios'
 import Citas from './pages/Citas'
+import ReservaPublica from './pages/ReservaPublica'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -40,16 +41,22 @@ function App() {
 
   if (loading) return <p style={{ padding: '2rem', color: 'white', background: '#0f0f0f', minHeight: '100vh', margin: 0 }}>Cargando...</p>
 
-  if (!user) return <Login onLogin={setUser} />
-
-  if (!negocio?.nombre) return <Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />
-
   return (
     <Routes>
-      <Route path="/" element={<Dashboard negocio={negocio} />} />
-      <Route path="/servicios" element={<Servicios negocio={negocio} />} />
-      <Route path="/citas" element={<Citas negocio={negocio} />} />
-      <Route path="*" element={<Navigate to="/" />} />
+      {/* Ruta pública — sin login */}
+      <Route path="/reservar/:slug" element={<ReservaPublica />} />
+
+      {/* Rutas privadas */}
+      {!user && <Route path="*" element={<Login onLogin={setUser} />} />}
+      {user && !negocio?.nombre && <Route path="*" element={<Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />} />}
+      {user && negocio?.nombre && (
+        <>
+          <Route path="/" element={<Dashboard negocio={negocio} />} />
+          <Route path="/servicios" element={<Servicios negocio={negocio} />} />
+          <Route path="/citas" element={<Citas negocio={negocio} />} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </>
+      )}
     </Routes>
   )
 }
