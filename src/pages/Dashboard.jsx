@@ -44,7 +44,7 @@ export default function Dashboard({ negocio }) {
           titulo="Citas"
           descripcion="Ve y gestiona tu agenda"
           icono="📅"
-          onClick={() => alert('Próximamente — Tarea G')}
+          onClick={() => navigate('/citas')}
         />
         <TarjetaNav
           titulo="Reservas online"

@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Servicios from './pages/Servicios'
+import Citas from './pages/Citas'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -47,6 +48,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Dashboard negocio={negocio} />} />
       <Route path="/servicios" element={<Servicios negocio={negocio} />} />
+      <Route path="/citas" element={<Citas negocio={negocio} />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )
