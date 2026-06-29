@@ -1,106 +1,128 @@
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+const estadoBadge = {
+  pendiente:  'bg-amber-50 text-amber-800',
+  confirmada: 'bg-emerald-50 text-emerald-800',
+  completada: 'bg-slate-100 text-slate-600',
+  cancelada:  'bg-red-50 text-red-700',
+}
+
+function getInitials(nombre) {
+  return nombre?.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || '?'
+}
+
+function getHora(fechaHora) {
+  return new Date(fechaHora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+}
+
+function getFechaHoy() {
+  return new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 export default function Dashboard({ negocio }) {
-  const navigate = useNavigate()
+  const [stats, setStats] = useState({ hoy: 0, pendientes: 0, completadas: 0, servicios: 0 })
+  const [citasHoy, setCitasHoy] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!negocio?.id) return
+    fetchData()
+  }, [negocio])
+
+  const fetchData = async () => {
+    const hoy = new Date()
+    const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString()
+    const fin   = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1).toISOString()
+
+    const [{ data: citas }, { data: servicios }] = await Promise.all([
+      supabase
+        .from('citas')
+        .select('*, servicios(nombre, duracion_minutos)')
+        .eq('negocio_id', negocio.id)
+        .gte('fecha_hora', inicio)
+        .lt('fecha_hora', fin)
+        .order('fecha_hora'),
+      supabase
+        .from('servicios')
+        .select('id')
+        .eq('negocio_id', negocio.id)
+        .eq('activo', true),
+    ])
+
+    if (citas) {
+      setCitasHoy(citas)
+      setStats({
+        hoy:        citas.length,
+        pendientes: citas.filter(c => c.estado === 'pendiente').length,
+        completadas: citas.filter(c => c.estado === 'completada').length,
+        servicios:  servicios?.length || 0,
+      })
+    }
+    setLoading(false)
+  }
+
+  const statCards = [
+    { label: 'Citas hoy',        value: stats.hoy,         color: 'text-nexio-violet'  },
+    { label: 'Pendientes',       value: stats.pendientes,   color: 'text-amber-500'     },
+    { label: 'Completadas',      value: stats.completadas,  color: 'text-emerald-600'   },
+    { label: 'Servicios activos',value: stats.servicios,    color: 'text-indigo-500'    },
+  ]
 
   return (
-    <div style={{ minHeight: '100vh', fontFamily: 'sans-serif', background: '#0f0f0f', color: 'white' }}>
-      
-      {/* Header */}
-      <header style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '1rem 2rem', borderBottom: '1px solid #222'
-      }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>Nexio</h1>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          style={{ background: 'none', border: '1px solid #444', color: '#aaa', padding: '0.4rem 1rem', cursor: 'pointer', borderRadius: '6px' }}
-        >
-          Cerrar sesión
-        </button>
-      </header>
-
-      {/* Bienvenida */}
-      <div style={{ padding: '2rem', borderBottom: '1px solid #222' }}>
-        <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.75rem' }}>
-          Hola, {negocio.nombre} 👋
-        </h2>
-        <p style={{ margin: 0, color: '#888' }}>
-          {negocio.categoria}{negocio.direccion ? ` · ${negocio.direccion}` : ''}
-        </p>
-      </div>
-
-      {/* Tarjetas de navegación */}
-      <div style={{ padding: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        
-        <TarjetaNav
-          titulo="Servicios"
-          descripcion="Gestiona lo que ofreces"
-          icono="✂️"
-          onClick={() => navigate('/servicios')}
-        />
-        <TarjetaNav
-          titulo="Citas"
-          descripcion="Ve y gestiona tu agenda"
-          icono="📅"
-          onClick={() => navigate('/citas')}
-        />
-        <TarjetaNav
-          titulo="Reservas online"
-          descripcion="Tu página pública de reservas"
-          icono="🌐"
-          onClick={() => alert('Próximamente — Tarea J')}
-        />
-        <TarjetaNav
-          titulo="Perfil"
-          descripcion="Edita los datos de tu negocio"
-          icono="⚙️"
-          onClick={() => alert('Próximamente')}
-        />
-
-      </div>
-
-      {/* Resumen rápido */}
-      <div style={{ padding: '0 2rem 2rem' }}>
-        <h3 style={{ color: '#666', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1rem' }}>
-          Resumen
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
-          <Stat label="Citas hoy" valor="—" />
-          <Stat label="Esta semana" valor="—" />
-          <Stat label="Servicios activos" valor="—" />
+    <div className="flex flex-col h-full">
+      <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+        <div>
+          <h1 className="text-base font-semibold text-slate-900">
+            Buenos días, {negocio?.nombre?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-xs text-slate-400 capitalize">{getFechaHoy()}</p>
+        </div>
+        <div className="w-8 h-8 rounded-full bg-nexio-violet-soft flex items-center justify-center">
+          <span className="text-[11px] font-semibold text-nexio-violet">{getInitials(negocio?.nombre)}</span>
         </div>
       </div>
 
-    </div>
-  )
-}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="grid grid-cols-4 gap-3 mb-6">
+          {statCards.map(({ label, value, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-2">{label}</p>
+              <p className={`text-2xl font-semibold ${color}`}>{loading ? '—' : value}</p>
+            </div>
+          ))}
+        </div>
 
-function TarjetaNav({ titulo, descripcion, icono, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '12px',
-        padding: '1.5rem', cursor: 'pointer', textAlign: 'left', color: 'white',
-        transition: 'border-color 0.2s'
-      }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = '#444'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2a2a'}
-    >
-      <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>{icono}</div>
-      <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{titulo}</div>
-      <div style={{ color: '#888', fontSize: '0.875rem' }}>{descripcion}</div>
-    </button>
-  )
-}
+        <div className="bg-white rounded-xl border border-slate-200">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-800">Citas de hoy</span>
+            <Link to="/citas" className="text-xs text-nexio-violet hover:underline">Ver todas →</Link>
+          </div>
 
-function Stat({ label, valor }) {
-  return (
-    <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '1.25rem' }}>
-      <div style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{valor}</div>
-      <div style={{ color: '#888', fontSize: '0.875rem' }}>{label}</div>
+          {loading ? (
+            <p className="px-4 py-8 text-center text-sm text-slate-400">Cargando...</p>
+          ) : citasHoy.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-slate-400">No hay citas para hoy</p>
+          ) : (
+            citasHoy.map((cita, i) => (
+              <div key={cita.id} className={`px-4 py-3 flex items-center gap-3 ${i < citasHoy.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                <div className="w-8 h-8 rounded-full bg-nexio-violet-soft flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] font-semibold text-nexio-violet">{getInitials(cita.cliente_nombre)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{cita.cliente_nombre}</p>
+                  <p className="text-xs text-slate-400">{cita.servicios?.nombre} · {cita.servicios?.duracion_minutos} min</p>
+                </div>
+                <span className="text-xs text-slate-400 flex-shrink-0">{getHora(cita.fecha_hora)}</span>
+                <span className={`text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 capitalize ${estadoBadge[cita.estado] || 'bg-slate-100 text-slate-600'}`}>
+                  {cita.estado}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   )
 }

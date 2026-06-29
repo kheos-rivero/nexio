@@ -7,7 +7,11 @@ import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import Servicios from './pages/Servicios'
 import Citas from './pages/Citas'
+import Perfil from './pages/Perfil'
+import ReservasOnline from './pages/ReservasOnline'
 import ReservaPublica from './pages/ReservaPublica'
+import Horarios from './pages/Horarios'
+import Layout from './components/Layout'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -40,24 +44,56 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (loading) return <p style={{ padding: '2rem', color: 'white', background: '#0f0f0f', minHeight: '100vh', margin: 0 }}>Cargando...</p>
+  if (loading) return (
+    <div className="min-h-screen bg-nexio-sidebar flex items-center justify-center">
+      <p className="text-white/50 text-sm">Cargando...</p>
+    </div>
+  )
 
   return (
     <Routes>
-      {/* Rutas públicas — sin login */}
       <Route path="/reservar/:slug" element={<ReservaPublica />} />
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />} />
 
-      {/* Landing — solo si no hay sesión */}
       {!user && <Route path="/" element={<Landing />} />}
+      {!user && <Route path="*" element={<Navigate to="/login" />} />}
 
-      {/* Rutas privadas */}
-      {user && !negocio?.nombre && <Route path="*" element={<Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />} />}
+      {user && !negocio?.nombre && (
+        <Route path="*" element={<Onboarding user={user} onComplete={() => cargarNegocio(user.id)} />} />
+      )}
+
       {user && negocio?.nombre && (
         <>
-          <Route path="/" element={<Dashboard negocio={negocio} />} />
-          <Route path="/servicios" element={<Servicios negocio={negocio} />} />
-          <Route path="/citas" element={<Citas negocio={negocio} />} />
+          <Route path="/" element={
+            <Layout negocio={negocio}>
+              <Dashboard negocio={negocio} />
+            </Layout>
+          } />
+          <Route path="/servicios" element={
+            <Layout negocio={negocio}>
+              <Servicios negocio={negocio} />
+            </Layout>
+          } />
+          <Route path="/citas" element={
+            <Layout negocio={negocio}>
+              <Citas negocio={negocio} />
+            </Layout>
+          } />
+          <Route path="/horarios" element={
+            <Layout negocio={negocio}>
+              <Horarios negocio={negocio} />
+            </Layout>
+          } />
+          <Route path="/perfil" element={
+            <Layout negocio={negocio}>
+              <Perfil negocio={negocio} onUpdate={() => cargarNegocio(user.id)} />
+            </Layout>
+          } />
+          <Route path="/reservas-online" element={
+            <Layout negocio={negocio}>
+              <ReservasOnline negocio={negocio} />
+            </Layout>
+          } />
           <Route path="*" element={<Navigate to="/" />} />
         </>
       )}

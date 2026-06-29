@@ -1,196 +1,184 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const emptyForm = { nombre: '', duracion_minutos: 30, precio: '' }
+
 export default function Servicios({ negocio }) {
-  const navigate = useNavigate()
   const [servicios, setServicios] = useState([])
   const [loading, setLoading] = useState(true)
-  const [mostrarForm, setMostrarForm] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [editando, setEditando] = useState(null)
-  const [form, setForm] = useState({ nombre: '', duracion_minutos: 30, precio: '' })
+  const [form, setForm] = useState(emptyForm)
   const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState(null)
 
-  const cargarServicios = async () => {
+  useEffect(() => { if (negocio?.id) fetchServicios() }, [negocio])
+
+  const fetchServicios = async () => {
     const { data } = await supabase
-      .from('servicios')
-      .select('*')
-      .eq('negocio_id', negocio.id)
-      .order('created_at', { ascending: true })
+      .from('servicios').select('*')
+      .eq('negocio_id', negocio.id).order('created_at')
     setServicios(data || [])
     setLoading(false)
   }
 
-  useEffect(() => { cargarServicios() }, [])
-
-  const abrirFormNuevo = () => {
-    setEditando(null)
-    setForm({ nombre: '', duracion_minutos: 30, precio: '' })
-    setError(null)
-    setMostrarForm(true)
+  const abrirNuevo = () => { setEditando(null); setForm(emptyForm); setShowForm(true) }
+  const abrirEditar = (s) => {
+    setEditando(s.id)
+    setForm({ nombre: s.nombre, duracion_minutos: s.duracion_minutos, precio: s.precio })
+    setShowForm(true)
   }
-
-  const abrirFormEditar = (servicio) => {
-    setEditando(servicio)
-    setForm({ nombre: servicio.nombre, duracion_minutos: servicio.duracion_minutos, precio: servicio.precio || '' })
-    setError(null)
-    setMostrarForm(true)
-  }
-
-  const cancelar = () => {
-    setMostrarForm(false)
-    setEditando(null)
-    setError(null)
-  }
+  const cerrarForm = () => { setShowForm(false); setEditando(null); setForm(emptyForm) }
 
   const guardar = async () => {
-    if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return }
-    if (!form.duracion_minutos || form.duracion_minutos < 5) { setError('La duración mínima es 5 minutos'); return }
+    if (!form.nombre || !form.precio) return
     setGuardando(true)
-    setError(null)
-
-    const datos = {
-      nombre: form.nombre.trim(),
-      duracion_minutos: parseInt(form.duracion_minutos),
-      precio: form.precio ? parseFloat(form.precio) : null,
-      negocio_id: negocio.id
-    }
-
-    let err
     if (editando) {
-      const res = await supabase.from('servicios').update(datos).eq('id', editando.id)
-      err = res.error
+      await supabase.from('servicios').update({
+        nombre: form.nombre,
+        duracion_minutos: Number(form.duracion_minutos),
+        precio: Number(form.precio),
+      }).eq('id', editando)
     } else {
-      const res = await supabase.from('servicios').insert(datos)
-      err = res.error
+      await supabase.from('servicios').insert({
+        negocio_id: negocio.id,
+        nombre: form.nombre,
+        duracion_minutos: Number(form.duracion_minutos),
+        precio: Number(form.precio),
+        activo: true,
+      })
     }
-
-    if (err) {
-      setError('Error al guardar. Inténtalo de nuevo.')
-    } else {
-      setMostrarForm(false)
-      setEditando(null)
-      cargarServicios()
-    }
+    await fetchServicios()
     setGuardando(false)
+    cerrarForm()
   }
 
-  const toggleActivo = async (servicio) => {
-    await supabase.from('servicios').update({ activo: !servicio.activo }).eq('id', servicio.id)
-    cargarServicios()
+  const toggleActivo = async (s) => {
+    await supabase.from('servicios').update({ activo: !s.activo }).eq('id', s.id)
+    await fetchServicios()
   }
 
   const eliminar = async (id) => {
     if (!confirm('¿Eliminar este servicio?')) return
     await supabase.from('servicios').delete().eq('id', id)
-    cargarServicios()
+    await fetchServicios()
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f0f0f', color: 'white', fontFamily: 'sans-serif' }}>
+    <div className="flex flex-col h-full">
+      <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+        <h1 className="text-base font-semibold text-slate-900">Servicios</h1>
+        <button
+          onClick={abrirNuevo}
+          className="bg-nexio-violet text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-violet-700 transition-colors"
+        >
+          + Nuevo servicio
+        </button>
+      </div>
 
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 2rem', borderBottom: '1px solid #222' }}>
-        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.25rem' }}>←</button>
-        <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Servicios</h1>
-        <span style={{ color: '#555', fontSize: '0.875rem' }}>{negocio.nombre}</span>
-      </header>
-
-      <div style={{ padding: '2rem', maxWidth: '700px', margin: '0 auto' }}>
-
-        {/* Botón nuevo servicio */}
-        {!mostrarForm && (
-          <button onClick={abrirFormNuevo} style={{
-            background: 'white', color: 'black', border: 'none', padding: '0.75rem 1.5rem',
-            borderRadius: '8px', cursor: 'pointer', fontWeight: 600, marginBottom: '2rem'
-          }}>
-            + Nuevo servicio
-          </button>
-        )}
-
-        {/* Formulario */}
-        {mostrarForm && (
-          <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem' }}>
-            <h3 style={{ margin: '0 0 1.5rem' }}>{editando ? 'Editar servicio' : 'Nuevo servicio'}</h3>
-
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: '#aaa' }}>Nombre *</label>
-            <input
-              type="text" placeholder="Ej: Corte de pelo"
-              value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-              style={{ display: 'block', width: '100%', marginBottom: '1rem', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', boxSizing: 'border-box' }}
-            />
-
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: '#aaa' }}>Duración (minutos) *</label>
-            <input
-              type="number" min="5" step="5"
-              value={form.duracion_minutos} onChange={e => setForm(p => ({ ...p, duracion_minutos: e.target.value }))}
-              style={{ display: 'block', width: '100%', marginBottom: '1rem', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', boxSizing: 'border-box' }}
-            />
-
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.875rem', color: '#aaa' }}>Precio (€) — opcional</label>
-            <input
-              type="number" min="0" step="0.5" placeholder="Ej: 15"
-              value={form.precio} onChange={e => setForm(p => ({ ...p, precio: e.target.value }))}
-              style={{ display: 'block', width: '100%', marginBottom: '1.5rem', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', boxSizing: 'border-box' }}
-            />
-
-            {error && <p style={{ color: '#f87171', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</p>}
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button onClick={guardar} disabled={guardando} style={{ background: 'white', color: 'black', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
-                {guardando ? 'Guardando...' : 'Guardar'}
-              </button>
-              <button onClick={cancelar} style={{ background: 'none', border: '1px solid #444', color: '#aaa', padding: '0.6rem 1.5rem', borderRadius: '6px', cursor: 'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Lista de servicios */}
+      <div className="flex-1 overflow-auto p-6">
         {loading ? (
-          <p style={{ color: '#666' }}>Cargando servicios...</p>
+          <p className="text-sm text-slate-400 text-center py-12">Cargando...</p>
         ) : servicios.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#555' }}>
-            <p style={{ fontSize: '2rem', margin: '0 0 0.5rem' }}>✂️</p>
-            <p>Aún no tienes servicios. ¡Crea el primero!</p>
+          <div className="text-center py-16">
+            <p className="text-slate-400 text-sm">Aún no tienes servicios.</p>
+            <button onClick={abrirNuevo} className="mt-3 text-nexio-violet text-sm hover:underline">
+              Crea tu primer servicio →
+            </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="flex flex-col gap-3 max-w-2xl">
             {servicios.map(s => (
-              <div key={s.id} style={{
-                background: '#1a1a1a', border: `1px solid ${s.activo ? '#2a2a2a' : '#1f1f1f'}`,
-                borderRadius: '10px', padding: '1rem 1.25rem',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                opacity: s.activo ? 1 : 0.5
-              }}>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>{s.nombre}</div>
-                  <div style={{ color: '#888', fontSize: '0.875rem' }}>
-                    {s.duracion_minutos} min
-                    {s.precio ? ` · ${parseFloat(s.precio).toFixed(2)}€` : ''}
-                  </div>
+              <div key={s.id} className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">{s.nombre}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{s.duracion_minutos} min · {Number(s.precio).toFixed(2)}€</p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <button onClick={() => toggleActivo(s)} style={{
-                    background: s.activo ? '#166534' : '#333', border: 'none', color: s.activo ? '#86efac' : '#888',
-                    padding: '0.3rem 0.75rem', borderRadius: '20px', cursor: 'pointer', fontSize: '0.75rem'
-                  }}>
-                    {s.activo ? 'Activo' : 'Inactivo'}
-                  </button>
-                  <button onClick={() => abrirFormEditar(s)} style={{ background: 'none', border: '1px solid #333', color: '#aaa', padding: '0.3rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem' }}>
-                    Editar
-                  </button>
-                  <button onClick={() => eliminar(s.id)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '1rem' }}>
-                    🗑
-                  </button>
-                </div>
+                <button
+                  onClick={() => toggleActivo(s)}
+                  className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${
+                    s.activo
+                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {s.activo ? 'Activo' : 'Inactivo'}
+                </button>
+                <button
+                  onClick={() => abrirEditar(s)}
+                  className="text-xs text-slate-400 hover:text-nexio-violet transition-colors"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => eliminar(s.id)}
+                  className="text-xs text-slate-300 hover:text-red-400 transition-colors"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md mx-4 p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-5">
+              {editando ? 'Editar servicio' : 'Nuevo servicio'}
+            </h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={form.nombre}
+                  onChange={e => setForm({ ...form, nombre: e.target.value })}
+                  placeholder="Ej: Corte de cabello"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-nexio-violet"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Duración (min)</label>
+                  <input
+                    type="number"
+                    value={form.duracion_minutos}
+                    onChange={e => setForm({ ...form, duracion_minutos: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-nexio-violet"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Precio (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.precio}
+                    onChange={e => setForm({ ...form, precio: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-nexio-violet"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={cerrarForm}
+                className="flex-1 border border-slate-200 text-slate-600 text-sm font-medium py-2 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardar}
+                disabled={guardando}
+                className="flex-1 bg-nexio-violet text-white text-sm font-medium py-2 rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
+              >
+                {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Crear servicio'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

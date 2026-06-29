@@ -2,8 +2,24 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabasePublico } from '../lib/supabase'
 
-const HORAS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
-               '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30']
+const formatearFecha = (f) => {
+  if (!f) return ''
+  const [y, m, d] = f.split('-')
+  return `${d}/${m}/${y}`
+}
+
+const horaAMinutos = (hora) => {
+  const [h, m] = hora.split(':').map(Number)
+  return h * 60 + m
+}
+
+const minutosAHora = (min) => {
+  const h = Math.floor(min / 60).toString().padStart(2, '0')
+  const m = (min % 60).toString().padStart(2, '0')
+  return `${h}:${m}`
+}
+
+const INTERVALO = 30
 
 export default function ReservaPublica() {
   const { slug } = useParams()
@@ -16,6 +32,8 @@ export default function ReservaPublica() {
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null)
   const [fecha, setFecha] = useState('')
   const [hora, setHora] = useState('')
+  const [horasDisponibles, setHorasDisponibles] = useState([])
+  const [loadingHoras, setLoadingHoras] = useState(false)
   const [form, setForm] = useState({ nombre: '', telefono: '', email: '' })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState(null)
@@ -23,19 +41,11 @@ export default function ReservaPublica() {
   useEffect(() => {
     const cargar = async () => {
       const { data: negocioData } = await supabasePublico
-        .from('negocios')
-        .select('*')
-        .eq('slug', slug)
-        .single()
-
+        .from('negocios').select('*').eq('slug', slug).single()
       if (!negocioData) { setNotFound(true); setLoading(false); return }
-
       const { data: serviciosData } = await supabasePublico
-        .from('servicios')
-        .select('*')
-        .eq('negocio_id', negocioData.id)
-        .eq('activo', true)
-
+        .from('servicios').select('*')
+        .eq('negocio_id', negocioData.id).eq('activo', true)
       setNegocio(negocioData)
       setServicios(serviciosData || [])
       setLoading(false)
@@ -43,14 +53,70 @@ export default function ReservaPublica() {
     cargar()
   }, [slug])
 
+  useEffect(() => {
+    if (fecha && servicioSeleccionado && negocio) {
+      calcularHorasDisponibles()
+    }
+  }, [fecha, servicioSeleccionado])
+
+  const calcularHorasDisponibles = async () => {
+    setLoadingHoras(true)
+    setHora('')
+
+    const diaSemana = (new Date(fecha + 'T00:00:00').getDay() + 6) % 7
+
+    const { data: horario } = await supabasePublico
+      .from('horarios')
+      .select('*')
+      .eq('negocio_id', negocio.id)
+      .eq('dia_semana', diaSemana)
+      .eq('activo', true)
+      .single()
+
+    if (!horario) {
+      setHorasDisponibles([])
+      setLoadingHoras(false)
+      return
+    }
+
+    const inicioMin = horaAMinutos(horario.hora_inicio)
+    const finMin = horaAMinutos(horario.hora_fin)
+    const duracion = servicioSeleccionado.duracion_minutos
+
+    const inicio = new Date(fecha + 'T00:00:00').toISOString()
+    const fin = new Date(fecha + 'T23:59:59').toISOString()
+
+    const { data: citasDelDia } = await supabasePublico
+      .from('citas')
+      .select('fecha_hora, servicios(duracion_minutos)')
+      .eq('negocio_id', negocio.id)
+      .gte('fecha_hora', inicio)
+      .lte('fecha_hora', fin)
+      .neq('estado', 'cancelada')
+
+    const franjasBloqueadas = (citasDelDia || []).map(c => {
+      const citaDate = new Date(c.fecha_hora)
+      const citaMin = citaDate.getHours() * 60 + citaDate.getMinutes()
+      return { inicio: citaMin, fin: citaMin + (c.servicios?.duracion_minutos || 30) }
+    })
+
+    const horas = []
+    for (let min = inicioMin; min + duracion <= finMin; min += INTERVALO) {
+      const ocupada = franjasBloqueadas.some(f => min < f.fin && min + duracion > f.inicio)
+      if (!ocupada) horas.push(minutosAHora(min))
+    }
+
+    setHorasDisponibles(horas)
+    setLoadingHoras(false)
+  }
+
   const confirmarReserva = async () => {
     if (!form.nombre.trim()) { setError('Tu nombre es obligatorio'); return }
     setGuardando(true)
     setError(null)
 
     const fechaHora = new Date(`${fecha}T${hora}`).toISOString()
-
-    const { error } = await supabasePublico.from('citas').insert({
+    const { error: err } = await supabasePublico.from('citas').insert({
       negocio_id: negocio.id,
       servicio_id: servicioSeleccionado.id,
       cliente_nombre: form.nombre.trim(),
@@ -60,67 +126,114 @@ export default function ReservaPublica() {
       estado: 'pendiente'
     })
 
-    if (error) {
+    if (err) {
       setError('Error al confirmar la reserva. Inténtalo de nuevo.')
-    } else {
-      setPaso(4)
+      setGuardando(false)
+      return
     }
+
+    if (form.email.trim()) {
+      try {
+        await fetch(
+          'https://ytaiwsttqtooirzfsxqk.supabase.co/functions/v1/enviar-confirmacion',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cliente_nombre: form.nombre.trim(),
+              cliente_email: form.email.trim(),
+              negocio_nombre: negocio.nombre,
+              servicio_nombre: servicioSeleccionado.nombre,
+              fecha: formatearFecha(fecha),
+              hora,
+            }),
+          }
+        )
+      } catch (e) {
+        console.error('Error enviando email:', e)
+      }
+    }
+
+    setPaso(4)
     setGuardando(false)
   }
 
   const hoy = new Date().toISOString().split('T')[0]
 
-  if (loading) return <div style={estilos.pagina}><p style={{ color: '#888' }}>Cargando...</p></div>
+  const inputClass = "w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:border-nexio-violet transition-colors"
+  const labelClass = "block text-xs font-medium text-slate-600 mb-1"
+
+  if (loading) return (
+    <div className="min-h-screen bg-nexio-bg flex items-center justify-center">
+      <p className="text-sm text-slate-400">Cargando...</p>
+    </div>
+  )
+
   if (notFound) return (
-    <div style={estilos.pagina}>
-      <div style={estilos.card}>
-        <h2 style={{ color: 'white' }}>Negocio no encontrado</h2>
-        <p style={{ color: '#888' }}>El enlace que has usado no es válido.</p>
+    <div className="min-h-screen bg-nexio-bg flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-sm w-full">
+        <p className="text-2xl mb-3">🔍</p>
+        <h2 className="text-base font-semibold text-slate-800 mb-1">Negocio no encontrado</h2>
+        <p className="text-sm text-slate-400">El enlace que has usado no es válido.</p>
       </div>
     </div>
   )
 
   return (
-    <div style={estilos.pagina}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ color: 'white', margin: '0 0 0.25rem', fontSize: '1.75rem' }}>{negocio.nombre}</h1>
-        <p style={{ color: '#888', margin: 0 }}>
+    <div className="min-h-screen bg-nexio-bg flex flex-col items-center justify-center px-4 py-10">
+
+      <div className="text-center mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">{negocio.nombre}</h1>
+        <p className="text-sm text-slate-400 mt-1">
           {negocio.categoria}{negocio.direccion ? ` · ${negocio.direccion}` : ''}
         </p>
-        {negocio.descripcion && <p style={{ color: '#666', margin: '0.5rem 0 0', fontSize: '0.875rem' }}>{negocio.descripcion}</p>}
+        {negocio.descripcion && (
+          <p className="text-sm text-slate-500 mt-1">{negocio.descripcion}</p>
+        )}
       </div>
 
-      <div style={estilos.card}>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
-          {[1, 2, 3].map(n => (
-            <div key={n} style={{
-              width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.8rem', fontWeight: 600,
-              background: paso > n ? '#166534' : paso === n ? 'white' : '#2a2a2a',
-              color: paso > n ? '#86efac' : paso === n ? 'black' : '#555'
-            }}>{paso > n ? '✓' : n}</div>
-          ))}
-        </div>
+      <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md p-6">
+
+        {paso < 4 && (
+          <div className="flex items-center justify-center gap-2 mb-6">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                  paso > n ? 'bg-emerald-100 text-emerald-700'
+                  : paso === n ? 'bg-nexio-violet text-white'
+                  : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {paso > n ? '✓' : n}
+                </div>
+                {n < 3 && <div className={`w-8 h-px ${paso > n ? 'bg-emerald-200' : 'bg-slate-200'}`} />}
+              </div>
+            ))}
+          </div>
+        )}
 
         {paso === 1 && (
           <div>
-            <h3 style={{ color: 'white', margin: '0 0 1.25rem', textAlign: 'center' }}>¿Qué servicio necesitas?</h3>
+            <h3 className="text-sm font-semibold text-slate-800 text-center mb-4">
+              ¿Qué servicio necesitas?
+            </h3>
             {servicios.length === 0 ? (
-              <p style={{ color: '#888', textAlign: 'center' }}>Este negocio aún no tiene servicios disponibles.</p>
+              <p className="text-sm text-slate-400 text-center py-6">
+                Este negocio aún no tiene servicios disponibles.
+              </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="flex flex-col gap-2">
                 {servicios.map(s => (
-                  <button key={s.id} onClick={() => { setServicioSeleccionado(s); setPaso(2) }} style={{
-                    background: '#111', border: '1px solid #333', borderRadius: '10px',
-                    padding: '1rem 1.25rem', cursor: 'pointer', textAlign: 'left', color: 'white'
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = '#555'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = '#333'}
+                  <button
+                    key={s.id}
+                    onClick={() => { setServicioSeleccionado(s); setPaso(2) }}
+                    className="w-full border border-slate-200 hover:border-nexio-violet rounded-xl px-4 py-3 text-left transition-colors group"
                   >
-                    <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>{s.nombre}</div>
-                    <div style={{ color: '#888', fontSize: '0.875rem' }}>
+                    <p className="text-sm font-semibold text-slate-800 group-hover:text-nexio-violet transition-colors">
+                      {s.nombre}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
                       {s.duracion_minutos} min{s.precio ? ` · ${parseFloat(s.precio).toFixed(2)}€` : ''}
-                    </div>
+                    </p>
                   </button>
                 ))}
               </div>
@@ -130,36 +243,63 @@ export default function ReservaPublica() {
 
         {paso === 2 && (
           <div>
-            <h3 style={{ color: 'white', margin: '0 0 0.5rem', textAlign: 'center' }}>¿Cuándo te viene bien?</h3>
-            <p style={{ color: '#888', textAlign: 'center', margin: '0 0 1.5rem', fontSize: '0.875rem' }}>
+            <h3 className="text-sm font-semibold text-slate-800 text-center mb-1">
+              ¿Cuándo te viene bien?
+            </h3>
+            <p className="text-xs text-slate-400 text-center mb-4">
               {servicioSeleccionado.nombre} · {servicioSeleccionado.duracion_minutos} min
             </p>
-            <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Fecha</label>
-            <input type="date" min={hoy} value={fecha} onChange={e => setFecha(e.target.value)}
-              style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1.25rem', boxSizing: 'border-box' }}
+
+            <label className={labelClass}>Fecha</label>
+            <input
+              type="date" min={hoy} value={fecha}
+              onChange={e => { setFecha(e.target.value); setHora('') }}
+              className={`${inputClass} mb-4`}
             />
+
             {fecha && (
               <>
-                <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Hora</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                  {HORAS.map(h => (
-                    <button key={h} onClick={() => setHora(h)} style={{
-                      padding: '0.5rem', borderRadius: '6px', border: '1px solid',
-                      borderColor: hora === h ? 'white' : '#333',
-                      background: hora === h ? 'white' : '#111',
-                      color: hora === h ? 'black' : '#aaa',
-                      cursor: 'pointer', fontSize: '0.875rem'
-                    }}>{h}</button>
-                  ))}
-                </div>
+                <label className={`${labelClass} mb-2`}>Hora</label>
+                {loadingHoras ? (
+                  <p className="text-sm text-slate-400 text-center py-4">Comprobando disponibilidad...</p>
+                ) : horasDisponibles.length === 0 ? (
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 mb-4">
+                    <p className="text-sm text-amber-700 text-center">
+                      No hay horas disponibles para este día. Prueba con otra fecha.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {horasDisponibles.map(h => (
+                      <button
+                        key={h}
+                        onClick={() => setHora(h)}
+                        className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
+                          hora === h
+                            ? 'bg-nexio-violet text-white border-nexio-violet'
+                            : 'border-slate-200 text-slate-600 hover:border-nexio-violet hover:text-nexio-violet'
+                        }`}
+                      >
+                        {h}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             )}
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button onClick={() => setPaso(1)} style={{ flex: 1, padding: '0.7rem', background: 'none', border: '1px solid #333', color: '#888', borderRadius: '8px', cursor: 'pointer' }}>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPaso(1)}
+                className="flex-1 border border-slate-200 text-slate-500 text-sm py-2.5 rounded-lg hover:bg-slate-50 transition-colors"
+              >
                 ← Volver
               </button>
-              <button onClick={() => { if (fecha && hora) setPaso(3) }} disabled={!fecha || !hora}
-                style={{ flex: 2, padding: '0.7rem', background: fecha && hora ? 'white' : '#2a2a2a', color: fecha && hora ? 'black' : '#555', border: 'none', borderRadius: '8px', cursor: fecha && hora ? 'pointer' : 'default', fontWeight: 600 }}>
+              <button
+                onClick={() => { if (fecha && hora) setPaso(3) }}
+                disabled={!fecha || !hora}
+                className="flex-[2] bg-nexio-violet text-white text-sm font-medium py-2.5 rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
                 Continuar →
               </button>
             </div>
@@ -168,32 +308,53 @@ export default function ReservaPublica() {
 
         {paso === 3 && (
           <div>
-            <h3 style={{ color: 'white', margin: '0 0 0.5rem', textAlign: 'center' }}>Tus datos</h3>
-            <p style={{ color: '#888', textAlign: 'center', margin: '0 0 1.5rem', fontSize: '0.875rem' }}>
-              {servicioSeleccionado.nombre} · {fecha} · {hora}
+            <h3 className="text-sm font-semibold text-slate-800 text-center mb-1">Tus datos</h3>
+            <p className="text-xs text-slate-400 text-center mb-4">
+              {servicioSeleccionado.nombre} · {formatearFecha(fecha)} · {hora}
             </p>
-            <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Tu nombre *</label>
-            <input type="text" placeholder="Ej: Carlos García"
-              value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-              style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1rem', boxSizing: 'border-box' }}
-            />
-            <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Teléfono</label>
-            <input type="tel" placeholder="Ej: 612 345 678"
-              value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
-              style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1rem', boxSizing: 'border-box' }}
-            />
-            <label style={{ display: 'block', color: '#aaa', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Email</label>
-            <input type="email" placeholder="Ej: carlos@email.com"
-              value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-              style={{ width: '100%', padding: '0.6rem', background: '#111', border: '1px solid #333', borderRadius: '6px', color: 'white', marginBottom: '1.5rem', boxSizing: 'border-box' }}
-            />
-            {error && <p style={{ color: '#f87171', fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</p>}
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button onClick={() => setPaso(2)} style={{ flex: 1, padding: '0.7rem', background: 'none', border: '1px solid #333', color: '#888', borderRadius: '8px', cursor: 'pointer' }}>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className={labelClass}>Tu nombre *</label>
+                <input type="text" placeholder="Ej: Carlos García"
+                  value={form.nombre}
+                  onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Teléfono</label>
+                <input type="tel" placeholder="Ej: 612 345 678"
+                  value={form.telefono}
+                  onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input type="email" placeholder="Ej: carlos@email.com"
+                  value={form.email}
+                  onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            {error && (
+              <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mt-3">
+                {error}
+              </p>
+            )}
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setPaso(2)}
+                className="flex-1 border border-slate-200 text-slate-500 text-sm py-2.5 rounded-lg hover:bg-slate-50 transition-colors"
+              >
                 ← Volver
               </button>
-              <button onClick={confirmarReserva} disabled={guardando}
-                style={{ flex: 2, padding: '0.7rem', background: 'white', color: 'black', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+              <button
+                onClick={confirmarReserva}
+                disabled={guardando}
+                className="flex-[2] bg-nexio-violet text-white text-sm font-medium py-2.5 rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
+              >
                 {guardando ? 'Confirmando...' : 'Confirmar reserva'}
               </button>
             </div>
@@ -201,31 +362,24 @@ export default function ReservaPublica() {
         )}
 
         {paso === 4 && (
-          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
-            <h3 style={{ color: 'white', margin: '0 0 0.5rem' }}>¡Reserva confirmada!</h3>
-            <p style={{ color: '#888', margin: '0 0 0.25rem' }}>{servicioSeleccionado.nombre}</p>
-            <p style={{ color: '#888', margin: '0 0 1.5rem' }}>{fecha} · {hora}</p>
-            <p style={{ color: '#666', fontSize: '0.875rem' }}>El negocio se pondrá en contacto contigo para confirmar.</p>
+          <div className="text-center py-4">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <span className="text-emerald-600 text-2xl">✓</span>
+            </div>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">¡Reserva confirmada!</h3>
+            <p className="text-sm text-slate-500">{servicioSeleccionado.nombre}</p>
+            <p className="text-sm text-slate-500 mb-4">{formatearFecha(fecha)} · {hora}</p>
+            <p className="text-xs text-slate-400">
+              El negocio se pondrá en contacto contigo para confirmar.
+            </p>
           </div>
         )}
+
       </div>
 
-      <p style={{ textAlign: 'center', color: '#444', fontSize: '0.75rem', marginTop: '2rem' }}>
-        Reservas gestionadas con <strong style={{ color: '#666' }}>Nexio</strong>
+      <p className="text-center text-xs text-slate-400 mt-6">
+        Reservas gestionadas con <span className="text-nexio-violet font-medium">nexio</span>
       </p>
     </div>
   )
-}
-
-const estilos = {
-  pagina: {
-    minHeight: '100vh', background: '#0a0a0a', display: 'flex',
-    flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    padding: '2rem', fontFamily: 'sans-serif'
-  },
-  card: {
-    background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '16px',
-    padding: '2rem', width: '100%', maxWidth: '480px'
-  }
 }

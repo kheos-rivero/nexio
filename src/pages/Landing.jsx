@@ -1,92 +1,109 @@
 import { useNavigate } from 'react-router-dom'
 
+const COMPARATIVA = [
+  { nombre: 'App de reservas', precio: '~30€/mes' },
+  { nombre: 'Constructor web', precio: '~10€/mes' },
+  { nombre: 'Software de gestión', precio: '~90€/mes' },
+]
+
+const FEATURES = [
+  { icono: '📅', titulo: 'Reservas online', desc: 'Tus clientes reservan desde su móvil 24/7, sin llamadas.' },
+  { icono: '📋', titulo: 'Gestión de agenda', desc: 'Ve todas tus citas, confirma, cancela o completa con un click.' },
+  { icono: '✂️', titulo: 'Catálogo de servicios', desc: 'Define tus servicios con duración y precio. Actívalos cuando quieras.' },
+  { icono: '🌐', titulo: 'Página propia', desc: 'URL personalizada para compartir con tus clientes.' },
+]
+
+const TIPOS = [
+  'Peluquerías', 'Barberías', 'Clínicas estéticas', 'Fisioterapeutas',
+  'Talleres', 'Restaurantes', 'Cafeterías', 'Tiendas',
+  'Estudios de tatuaje', 'Psicólogos', 'Entrenadores personales', 'Centros de yoga'
+]
+
 export default function Landing() {
   const navigate = useNavigate()
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: 'white', fontFamily: 'sans-serif' }}>
+    <div className="min-h-screen bg-[#0a0a0a] text-white" style={{ fontFamily: 'sans-serif' }}>
 
       {/* Nav */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 2rem', borderBottom: '1px solid #1a1a1a' }}>
-        <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>Nexio</span>
-        <button onClick={() => navigate('/login')} style={{ background: 'none', border: '1px solid #333', color: '#aaa', padding: '0.5rem 1.25rem', borderRadius: '8px', cursor: 'pointer' }}>
+      <nav className="flex justify-between items-center px-8 py-5 border-b border-slate-800">
+        <span className="text-xl font-bold tracking-tight">nexio</span>
+        <button
+          onClick={() => navigate('/login')}
+          className="border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 px-5 py-2 rounded-lg text-sm transition-colors"
+        >
           Iniciar sesión
         </button>
       </nav>
 
       {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '5rem 2rem 4rem', maxWidth: '720px', margin: '0 auto' }}>
-        <div style={{ display: 'inline-block', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '20px', padding: '0.4rem 1rem', fontSize: '0.8rem', color: '#888', marginBottom: '2rem' }}>
+      <section className="text-center px-6 pt-20 pb-16 max-w-2xl mx-auto">
+        <div className="inline-block bg-slate-900 border border-slate-800 rounded-full px-4 py-1.5 text-xs text-slate-500 mb-8">
           Completamente gratis — sin tarjeta de crédito
         </div>
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, lineHeight: 1.15, margin: '0 0 1.5rem' }}>
+        <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-6">
           Gestiona tu negocio.<br />
-          <span style={{ color: '#888' }}>Sin pagar una fortuna.</span>
+          <span className="text-slate-500">Sin pagar una fortuna.</span>
         </h1>
-        <p style={{ fontSize: '1.125rem', color: '#666', lineHeight: 1.7, margin: '0 0 2.5rem', maxWidth: '520px', marginLeft: 'auto', marginRight: 'auto' }}>
+        <p className="text-lg text-slate-500 leading-relaxed mb-10 max-w-lg mx-auto">
           Reservas online, gestión de citas y presencia web — todo en un solo sitio. Lo que antes costaba 150€/mes, ahora es gratis.
         </p>
-        <button onClick={() => navigate('/login')} style={{
-          background: 'white', color: 'black', border: 'none', padding: '0.9rem 2.5rem',
-          borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '1rem',
-          marginRight: '1rem'
-        }}>
+        <button
+          onClick={() => navigate('/login')}
+          className="bg-nexio-violet hover:bg-violet-700 text-white font-semibold px-8 py-3.5 rounded-xl text-base transition-colors"
+        >
           Registra tu negocio gratis →
         </button>
       </section>
 
-      {/* Comparativa de precio */}
-      <section style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
-        <div style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: '16px', padding: '2rem' }}>
-          <h3 style={{ textAlign: 'center', color: '#666', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 1.5rem' }}>Lo que otros te cobran</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            {[
-              { nombre: 'Booksy (reservas)', precio: '~30€/mes', icono: '📅' },
-              { nombre: 'Hostinger (web)', precio: '~10€/mes', icono: '🌐' },
-              { nombre: 'Holded (gestión)', precio: '~90€/mes', icono: '📊' },
-            ].map(item => (
-              <div key={item.nombre} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#1a1a1a', borderRadius: '8px' }}>
-                <span style={{ color: '#888' }}>{item.icono} {item.nombre}</span>
-                <span style={{ color: '#f87171', fontWeight: 600 }}>{item.precio}</span>
+      {/* Comparativa */}
+      <section className="px-6 pb-16 max-w-lg mx-auto">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 className="text-center text-slate-500 text-xs uppercase tracking-widest mb-5">
+            Lo que otros te cobran
+          </h3>
+          <div className="flex flex-col gap-2 mb-4">
+            {COMPARATIVA.map(item => (
+              <div key={item.nombre} className="flex justify-between items-center bg-slate-800/50 rounded-lg px-4 py-3">
+                <span className="text-sm text-slate-400">{item.nombre}</span>
+                <span className="text-sm font-semibold text-red-400">{item.precio}</span>
               </div>
             ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#1a1a1a', borderRadius: '8px', borderTop: '1px solid #2a2a2a' }}>
-              <span style={{ color: '#888', fontWeight: 600 }}>Total mensual</span>
-              <span style={{ color: '#f87171', fontWeight: 700, fontSize: '1.1rem' }}>~150€/mes</span>
+            <div className="flex justify-between items-center bg-slate-800/50 rounded-lg px-4 py-3 border-t border-slate-700 mt-1">
+              <span className="text-sm text-slate-300 font-semibold">Total mensual</span>
+              <span className="text-base font-bold text-red-400">~150€/mes</span>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: '#0d2818', border: '1px solid #166534', borderRadius: '10px' }}>
-            <span style={{ color: '#86efac', fontWeight: 600 }}>✓ Nexio — todo incluido</span>
-            <span style={{ color: '#86efac', fontWeight: 700, fontSize: '1.25rem' }}>0€/mes</span>
+          <div className="flex justify-between items-center bg-emerald-950 border border-emerald-800 rounded-xl px-4 py-3.5">
+            <span className="text-emerald-400 font-semibold text-sm">✓ Nexio — todo incluido</span>
+            <span className="text-emerald-400 font-bold text-lg">0€/mes</span>
           </div>
         </div>
       </section>
 
-      {/* Funcionalidades */}
-      <section style={{ padding: '4rem 2rem', maxWidth: '800px', margin: '0 auto' }}>
-        <h2 style={{ textAlign: 'center', fontSize: '1.75rem', fontWeight: 700, margin: '0 0 3rem' }}>Todo lo que necesita tu negocio</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-          {[
-            { icono: '📅', titulo: 'Reservas online', desc: 'Tus clientes reservan desde su móvil 24/7, sin llamadas.' },
-            { icono: '📋', titulo: 'Gestión de agenda', desc: 'Ve todas tus citas, confirma, cancela o completa con un click.' },
-            { icono: '✂️', titulo: 'Catálogo de servicios', desc: 'Define tus servicios con duración y precio. Actívalos o desactívalos.' },
-            { icono: '🌐', titulo: 'Página propia', desc: 'URL personalizada para compartir con tus clientes.' },
-          ].map(f => (
-            <div key={f.titulo} style={{ background: '#111', border: '1px solid #1f1f1f', borderRadius: '12px', padding: '1.5rem' }}>
-              <div style={{ fontSize: '1.75rem', marginBottom: '0.75rem' }}>{f.icono}</div>
-              <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{f.titulo}</div>
-              <div style={{ color: '#666', fontSize: '0.875rem', lineHeight: 1.6 }}>{f.desc}</div>
+      {/* Features */}
+      <section className="px-6 pb-16 max-w-3xl mx-auto">
+        <h2 className="text-center text-2xl font-bold mb-10">Todo lo que necesita tu negocio</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {FEATURES.map(f => (
+            <div key={f.titulo} className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-nexio-violet/50 transition-colors">
+              <div className="text-2xl mb-3">{f.icono}</div>
+              <p className="font-semibold text-sm mb-1">{f.titulo}</p>
+              <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Para quién */}
-      <section style={{ padding: '0 2rem 4rem', maxWidth: '700px', margin: '0 auto', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 1rem' }}>Perfecto para tu tipo de negocio</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center' }}>
-          {['Peluquerías', 'Barberías', 'Clínicas estéticas', 'Fisioterapeutas', 'Talleres', 'Restaurantes', 'Cafeterías', 'Tiendas', 'Estudios de tatuaje', 'Psicólogos', 'Entrenadores personales', 'Centros de yoga'].map(tipo => (
-            <span key={tipo} style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '20px', padding: '0.4rem 1rem', fontSize: '0.875rem', color: '#888' }}>
+      <section className="px-6 pb-16 max-w-2xl mx-auto text-center">
+        <h2 className="text-xl font-bold mb-6">Perfecto para tu tipo de negocio</h2>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {TIPOS.map(tipo => (
+            <span
+              key={tipo}
+              className="bg-slate-900 border border-slate-800 rounded-full px-4 py-1.5 text-xs text-slate-500"
+            >
               {tipo}
             </span>
           ))}
@@ -94,20 +111,20 @@ export default function Landing() {
       </section>
 
       {/* CTA final */}
-      <section style={{ textAlign: 'center', padding: '4rem 2rem', borderTop: '1px solid #1a1a1a' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 1rem' }}>Empieza hoy. Es gratis.</h2>
-        <p style={{ color: '#666', margin: '0 0 2rem' }}>Sin tarjeta de crédito. Sin letra pequeña. Sin sorpresas.</p>
-        <button onClick={() => navigate('/login')} style={{
-          background: 'white', color: 'black', border: 'none', padding: '0.9rem 2.5rem',
-          borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '1rem'
-        }}>
+      <section className="text-center px-6 py-16 border-t border-slate-800">
+        <h2 className="text-3xl font-bold mb-3">Empieza hoy. Es gratis.</h2>
+        <p className="text-slate-500 mb-8">Sin tarjeta de crédito. Sin letra pequeña. Sin sorpresas.</p>
+        <button
+          onClick={() => navigate('/login')}
+          className="bg-nexio-violet hover:bg-violet-700 text-white font-semibold px-8 py-3.5 rounded-xl text-base transition-colors"
+        >
           Crear cuenta gratis →
         </button>
       </section>
 
       {/* Footer */}
-      <footer style={{ textAlign: 'center', padding: '2rem', borderTop: '1px solid #1a1a1a', color: '#444', fontSize: '0.8rem' }}>
-        Nexio © 2026 — La plataforma gratuita para negocios
+      <footer className="text-center px-6 py-6 border-t border-slate-800 text-slate-600 text-xs">
+        nexio © 2026 — La plataforma gratuita para negocios
       </footer>
 
     </div>
